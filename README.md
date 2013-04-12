@@ -27,5 +27,6 @@ Short attempt to describe the broker protocol:
 - The broker transmit the request to the interested party ('wanna be friend_[requesterId]').
 - Requested peer can refuse the contact ('no friend_[requesterId]') or accept and initiate a webRTC peer connection through the broker.
 - Upon refusal, the requesting peer is not sent any special message.
+
 The broker in fact transmits automatically offers and answers of webRTC peer connection from any to any peer inside a network, the choice is left to the client code to accept the webRTC connection or not.
 Here the client and server support a simple social protocol, allowing users to choose when to create the connection or not.
