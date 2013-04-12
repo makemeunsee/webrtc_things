@@ -3,6 +3,8 @@ webrtc_things
 
 Tests and demos with and around webrtc.
 
+Note: all these demos require Nightly, and were not tested on Chromium browsers.
+
 ***
 main.css & webrtc_common.js
 
@@ -14,7 +16,7 @@ A standalone demo of 2 way communication using webrtc inside the same page.
 ***
 webrtc_manual_handshake.html & webrtc_manual.js
 
-A failed demo of webrtc communication initiated without broker, by copying and pasting the handshake through another mean (up to the users: IM, email, etc.).
+A failed demo of webrtc communication initiated without broker, by copying and pasting the handshake through another mean (up to the users: IM, email, etc.). The current timeout (~3sec) to conclude the handshake is preventing this to work, but maybe later it could be configured or specified somehow.
 ***
 webrtc_websocket_broker.html & webrtc_websocket_broker.js
 
