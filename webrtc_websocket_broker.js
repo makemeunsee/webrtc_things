@@ -6,6 +6,7 @@ var contactStateMap = {};
 var connectionHandlers = {};
 var peerConnections = {};
 var channels = {};
+var nicks = {};
 
 function strStartsWith(str, prefix) {
   return str.lastIndexOf(prefix, 0) === 0;
@@ -17,6 +18,7 @@ var server = {
             replace('http://', 'ws://').
             replace('https://', 'wss://').
             replace('webrtc_websocket_broker.html','servlet/WebSocket');
+		//var location = 'ws://localhost:8080/webrtc/servlet/WebSocket/';
         //alert(location);
         this._ws = new WebSocket(location);
         this._ws.onopen = this._onopen;
@@ -134,12 +136,14 @@ function networkLeftUI(networkId) {
 
 function updateMembersUI(memberList) {
     var innerHTML = '<ul>';
+	nicks = {};
     for(var i = 0; i < memberList.length; i++) {
         var member = memberList[i];
         var nickStart = member.indexOf('-')+1;
         var nick = member.substr(nickStart, member.length-nickStart);
         var memberId = member.substr(0, nickStart-1);
         if (member.length > 0) {
+			nicks[memberId] = nick;
             var contactLink = '  <div id="peercontact' + memberId + '" class="peercontact"></div>';
             innerHTML = innerHTML + '<li><b class="peer" id="peer' + memberId + '">' + nick + '</b>' + contactLink + '</li>';
         }
@@ -283,6 +287,10 @@ function ConnectionHandler(peerId) {
 		//sendTextArea.focus();
 		//sendTextArea.setSelectionRange(0,0);
         channels[this.peerId].send(data);
+		var chatArea = document.getElementById("dataChannelReceive"+this.peerId);
+		var text = chatArea.value;
+		text = text + 'you: ' + data + '\r\n';
+		document.getElementById("dataChannelReceive"+this.peerId).value = text;
 		trace('Sent Data to ' + this.peerId + ': ' + data);
 	};
 	
@@ -317,6 +325,7 @@ function ConnectionHandler(peerId) {
             var readyState = channels[peerId].readyState;
             trace('datachannel (' + peerId + ') state is: ' + readyState);
             if (readyState.toLowerCase() == "open") {
+				// TODO: establish heartbeat
                 contactStateMap[peerId] = 'contact_established';
                 updateContactUI();
             } else {
@@ -328,7 +337,9 @@ function ConnectionHandler(peerId) {
 	function onReceiveMessageCallback(peerId) {
         return function(event) {
             trace('Received Message from remote peer ' + peerId);
-            document.getElementById("dataChannelReceive"+peerId).value = event.data;
+            var text = document.getElementById("dataChannelReceive"+peerId).value;
+			text = text + nicks[peerId] + ': ' + event.data + '\r\n';
+			document.getElementById("dataChannelReceive"+peerId).value = text;
         }
 	}
 	
