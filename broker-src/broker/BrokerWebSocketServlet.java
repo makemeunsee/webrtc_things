@@ -1,15 +1,9 @@
 package broker;
 
 import java.io.IOException;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -21,164 +15,41 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 	
 	private static final long serialVersionUID = 1111789239761721289L;
 
+    // web client messages headers
+
+    // to client message headers
+    public static final String OUT_JOINED = "in network with id";
+    public static final String OUT_MEMBER_LIST = "members of network";
+    public static final String OUT_WEBRTC_ANSWER = "answer from";
+    public static final String OUT_WEBRTC_OFFER = "offer from";
+    public static final String OUT_REQUEST_TIMEOUT = "request timeout";
+    public static final String OUT_FRIEND_REQUEST = "wanna be friend";
+
+    // from client message headers
+    public static final String IN_LEAVE = "leave";
+    public static final String IN_JOIN = "join";
+    public static final String IN_REQUEST_CONTACT = "can i friend";
+    public static final String IN_DENY_REQUEST = "no friend";
+    public static final String IN_MAKE_WEBRTC_OFFER = "connect me to";
+    public static final String IN_ACCEPT_WEBRTC_OFFER = "i accept gladly";
+
     private final Object lock = new Object();
 	private static int connectionCount = 0;
 	private final Map<String, Network> networks = new HashMap<String, Network>();
-	
-	public class Session {
-		public Session(Connection _connection, Integer _id) {
-			connection = _connection;
-			id = _id;
-		}
-		
-		public String getNetworkId() {
-			return myNetworkId;
-		}
-		
-		public void setNetworkId(String networkId) {
-			myNetworkId = networkId;
-		}
-		
-		public Integer getId() {
-			return id;
-		}
-		
-		public String getNick() {
-			return nick;
-		}
-		
-		public void setNick(String _nick) {
-			nick = _nick;
-		}
-		
-		public Connection getConnection() {
-			return connection;
-		}
-		
-		final Connection connection;
-		
-		String myNetworkId;
-		
-		final Integer id;
-		
-		String nick;
-	}
-	
-	public static class UnorderedPair<A,B> {
-		final A a;
-		final B b;
-		private UnorderedPair(A _a, B _b) {
-			a = _a;
-			b = _b;
-		}
-		public static <A, B> UnorderedPair<A, B> pair(A _a, B _b) {
-			return new UnorderedPair<A, B>(_a, _b);
-		}
-		
-		@Override
-		public int hashCode() {
-			return (a == null ? 0 : a.hashCode()) + (b == null ? 0 : b.hashCode());
-		}
-		
-		@Override
-		public boolean equals(final Object o) {
-			if(o instanceof UnorderedPair) {
-				UnorderedPair<?, ?> p = (UnorderedPair<?, ?>) o;
-				return ((a == p.a || a != null && a.equals(p.a)) &&
-						(b == p.b || b != null && b.equals(p.b))) ||
-						((a == p.b || a != null && a.equals(p.b)) &&
-						(b == p.a || b != null && b.equals(p.a)));
-			}
-			return false;
-		}
-		
-	}
-	
-	public class Network extends HashMap<Integer, Session> {
-		private static final long serialVersionUID = -597155903792227425L;
-		private final String id;
-		private final Map<UnorderedPair<Integer, Integer>, Date> pendingContactRequests =
-				new HashMap<UnorderedPair<Integer, Integer>, Date>();
-		
-		private final Thread requestTimeoutThread = new Thread(new Runnable(){
-			@Override
-			public void run() {
-				while(true) {
-					try{
-						Thread.sleep(1000l);
-					} catch(InterruptedException e) {
-						//dontcare
-					}
-					// eliminate old requests, timeout is 3 min
-					final Date limit = new Date(new Date().getTime() - 3*60*1000l);
-					final Set<UnorderedPair<Integer, Integer>> toRemove = new HashSet<UnorderedPair<Integer,Integer>>();
-					synchronized (pendingContactRequests) {
-						for(final Map.Entry<UnorderedPair<Integer, Integer>, Date> entry : pendingContactRequests.entrySet()) {
-							if(entry.getValue().before(limit)) {
-								toRemove.add(entry.getKey());
-							}
-						}
-					}
-					for(final UnorderedPair<Integer, Integer> p : toRemove) {
-						removeContactPending(p.a, p.b);
-						try {
-							get(p.a).getConnection().sendMessage("request timeout_" + p.b);
-							get(p.b).getConnection().sendMessage("request timeout_" + p.a);
-						} catch (IOException e) {
-							System.out.println("error sendind msg, see below");
-							e.printStackTrace(System.out);
-						}
-					}
-				}
-			}
-		});
-		
-		public Network(final String _id) {
-			id = _id;
-			requestTimeoutThread.start();
-		}
-		
-		public String getId() {
-			return id;
-		}
-		
-		public boolean addNewContactPending(final Integer id1, final Integer id2) {
-			if(!isContactPending(id1, id2)){
-				final Date now = new Date();
-				synchronized (pendingContactRequests) {
-					pendingContactRequests.put(UnorderedPair.pair(id1, id2), now);
-				}
-				return true;
-			}
-			return false;
-		}
-		
-		public boolean isContactPending(final Integer id1, final Integer id2) {
-			synchronized (pendingContactRequests) {
-				return pendingContactRequests.containsKey(UnorderedPair.pair(id1, id2));
-			}
-		}
-		
-		public void removeContactPending(final Integer id1, final Integer id2) {
-			synchronized (pendingContactRequests) {
-				pendingContactRequests.remove(UnorderedPair.pair(id1, id2));
-			}
-		}
-	}
-	
+
 	@Override
 	public WebSocket doWebSocketConnect(HttpServletRequest arg0, String arg1) {
 		return new WebSocket.OnTextMessage() {
 			
-			Session session;
+			UserSession session;
 			
 			@Override
 			public void onOpen(Connection connection) {
 				Integer id = null;
 				synchronized(lock) {
-					id = Integer.valueOf(connectionCount++);
+					id = connectionCount++;
 				}
-				session = new Session(connection, id);
+				session = new UserSession(connection, id);
 				System.out.println("Connection opened");
 			}
 			
@@ -201,26 +72,26 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 				//System.out.println(msg);
 				String networkId = session.getNetworkId();
 				Integer sessionId = session.getId();
-				if(msg.startsWith("connect me to")) {
+				if(msg.startsWith(IN_MAKE_WEBRTC_OFFER)) {
 					// webrtc connection offer
 					if(networkId != null) {
-						Network network = networks.get(networkId);
+                        Network network = networks.get(networkId);
 						try {
 							String[] tokens = msg.split("_");
 							if(tokens.length != 3) {
 								System.out.println("Discarded corrupt offer message: " + msg);
 								return;
 							}
-							// first token is "connect me to"
+							// first token is IN_MAKE_WEBRTC_OFFER
 							// second token is id of requested peer
 							int requestedPeerIndex = Integer.parseInt(tokens[1]);
 							//third token is sdp offer message
 							String sdp = tokens[2];
 							
 							// if the request was pending, remove it
-							network.removeContactPending(Integer.valueOf(requestedPeerIndex), sessionId);
+							network.removeContactPending(requestedPeerIndex, sessionId);
 							
-							network.get(Integer.valueOf(requestedPeerIndex)).getConnection().sendMessage("offer from_"+sessionId+"_"+sdp);
+							network.get(Integer.valueOf(requestedPeerIndex)).getConnection().sendMessage(OUT_WEBRTC_OFFER + "_" + sessionId + "_" + sdp);
 							System.out.println("Sent offer from " + sessionId + " to " + requestedPeerIndex);
 						} catch (NumberFormatException e) {
 							System.out.println("invalid request, bad id");
@@ -231,16 +102,16 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 					} else {
 						System.out.println("Not in a network, discarded offer msg");
 					}
-				} else if (msg.startsWith("i accept gladly")) {
+				} else if (msg.startsWith(IN_ACCEPT_WEBRTC_OFFER)) {
 					// webrtc connection answer
 					if(networkId != null) {
-						Network network = networks.get(networkId);
+                        Network network = networks.get(networkId);
 						String[] tokens = msg.split("_");
 						if(tokens.length < 3) {
 							System.out.println("Discarded corrupt answer message: " + msg);
 							return;
 						}
-						// first token is "i accept gladly"
+						// first token is IN_ACCEPT_WEBRTC_OFFER
 						// second token is id of requesting peer
 						int requestingPeerIndex = Integer.parseInt(tokens[1]);
 						//all next tokens are the sdp answer message
@@ -252,7 +123,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 						sb.append(tokens[tokens.length-1]);
 						
 						try {
-							network.get(Integer.valueOf(requestingPeerIndex)).getConnection().sendMessage("answer from_"+sessionId+"_"+sb.toString());
+							network.get(Integer.valueOf(requestingPeerIndex)).getConnection().sendMessage(OUT_WEBRTC_ANSWER + "_"+sessionId+"_"+sb.toString());
 							System.out.println("Sent answer from " + sessionId + " to " + requestingPeerIndex);
 						} catch (IOException e) {
 							System.out.println("error sendind msg, see below");
@@ -261,7 +132,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 					} else {
 						System.out.println("Not in a network, discarded answer msg");
 					}
-				} else if (msg.startsWith("join")) {
+				} else if (msg.startsWith(IN_JOIN)) {
 					// request to join a network
 					String[] tokens = msg.split("_");
 					if(tokens.length < 2 || tokens[1].length() < 1) {
@@ -269,9 +140,9 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 						return;
 					}
 					// leave the current network
-					leaveNetwork();
+					leaveNetwork(session);
 					
-					// first token is "join"
+					// first token is IN_JOIN
 					// second token is id of network
 					String newNetworkId = tokens[1];
 					// other tokens is nickname
@@ -286,39 +157,39 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 					}
 					
 					// join the requested network
-					Network network = networks.get(newNetworkId);
+                    Network network = networks.get(newNetworkId);
 					if (network == null) {
 						network = new Network(newNetworkId);
 						networks.put(newNetworkId, network);
 					}
 					network.put(sessionId, session);
 					session.setNetworkId(newNetworkId);
-					System.out.println("Session " + sessionId + " joined network " + newNetworkId);
+					System.out.println("UserSession " + sessionId + " joined network " + newNetworkId);
 					
 					// notify members of network of new member
 					notifyAllMembersOfNetwork(network);
-				} else if (msg.startsWith("leave")) {
-					leaveNetwork();
-				} else if (msg.startsWith("can i friend")) {
+				} else if (msg.startsWith(IN_LEAVE)) {
+					leaveNetwork(session);
+				} else if (msg.startsWith(IN_REQUEST_CONTACT)) {
 					// webrtc connection request
 					if(networkId != null) {
-						Network network = networks.get(networkId);
+                        Network network = networks.get(networkId);
 						try {
 							String[] tokens = msg.split("_");
 							if(tokens.length != 2) {
 								System.out.println("Discarded corrupt offer message: " + msg);
 								return;
 							}
-							// first token is "can i friend"
+							// first token is IN_REQUEST_CONTACT
 							// second token is id of requested peer
 							int requestedPeerIndex = Integer.parseInt(tokens[1]);
 							
-							if(!network.addNewContactPending(Integer.valueOf(requestedPeerIndex), sessionId)) {
+							if(!network.addNewContactPending(requestedPeerIndex, sessionId)) {
 								System.out.println("request already pending between " + requestedPeerIndex + " and " + sessionId + " in network " + networkId);
 								return;
 							}
 							
-							network.get(Integer.valueOf(requestedPeerIndex)).getConnection().sendMessage("wanna be friend_"+sessionId);
+							network.get(Integer.valueOf(requestedPeerIndex)).getConnection().sendMessage(OUT_FRIEND_REQUEST + "_" + sessionId);
 							System.out.println("Sent contact request from " + sessionId + " to " + requestedPeerIndex);
 						} catch (NumberFormatException e) {
 							System.out.println("invalid request, bad id");
@@ -329,19 +200,19 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 					} else {
 						System.out.println("Not in a network, discarded contact request msg");
 					}
-				} else if (msg.startsWith("no friend")) {
+				} else if (msg.startsWith(IN_DENY_REQUEST)) {
 					// webrtc connection request rejection
 					if(networkId != null) {
-						Network network = networks.get(networkId);
+                        Network network = networks.get(networkId);
 						String[] tokens = msg.split("_");
 						if(tokens.length != 2) {
 							System.out.println("Discarded corrupt offer message: " + msg);
 							return;
 						}
-						// first token is "no friend"
+						// first token is IN_DENY_REQUEST
 						// second token is id of requested peer
 						int requestedPeerIndex = Integer.parseInt(tokens[1]);
-						network.removeContactPending(Integer.valueOf(requestedPeerIndex), sessionId);
+						network.removeContactPending(requestedPeerIndex, sessionId);
 						
 						// nothing, let the unwanted wait without knowing
 						System.out.println("connection to " + requestedPeerIndex + " refused by " + sessionId + " in network " + networkId);
@@ -350,32 +221,36 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 					System.out.println("Discarded message: " + msg);
 				}
 			}
-			
-			private synchronized void leaveNetwork() {
-				String networkId = session.getNetworkId();
-				Integer sessionId = session.getId();
-				if (networkId != null) {
-					Network network = networks.get(networkId);
-					network.remove(sessionId);
-					session.setNetworkId(null);
-					session.setNick(null);
-					notifyAllMembersOfNetwork(network);
-				}
-			}
 		};
 	}
+
+    private synchronized void leaveNetwork(final UserSession session) {
+        String networkId = session.getNetworkId();
+        Integer sessionId = session.getId();
+        if (networkId != null) {
+            Network network = networks.get(networkId);
+            network.remove(sessionId);
+            session.setNetworkId(null);
+            session.setNick(null);
+            if (network.isEmpty()) {
+                networks.remove(networkId);
+            } else {
+                notifyAllMembersOfNetwork(network);
+            }
+        }
+    }
 	
 	private void notifyAllMembersOfNetwork(Network network) {
-		for(Map.Entry<Integer, Session> c : network.entrySet()) {
+		for(Map.Entry<Integer, UserSession> c : network.entrySet()) {
 			notifyMemberOfOtherMembers(c, network);
 		}
 	}
 
-	private void notifyMemberOfOtherMembers(Entry<Integer, Session> member, Network network) {
-		Session memberSession = member.getValue();
+	private void notifyMemberOfOtherMembers(Entry<Integer, UserSession> member, Network network) {
+		UserSession memberSession = member.getValue();
 		Integer memberId = member.getKey();
-		StringBuilder sb = new StringBuilder("members of network_");
-		for(Entry<Integer, Session> s : network.entrySet()) {
+		StringBuilder sb = new StringBuilder(OUT_MEMBER_LIST + "_");
+		for(Entry<Integer, UserSession> s : network.entrySet()) {
 			if(!s.getKey().equals(memberId)) {
 				String nick = s.getValue().getNick();
 				// no nick = invisible
@@ -389,7 +264,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 		}
 		
 		try {
-			memberSession.getConnection().sendMessage("in network with id_" + network.getId() + "_" + memberId);
+			memberSession.getConnection().sendMessage(OUT_JOINED + "_" + network.getId() + "_" + memberId);
 			memberSession.getConnection().sendMessage(sb.toString());
 		} catch (IOException e) {
 			System.out.println("error sendind msg to " + memberId + ", see below");

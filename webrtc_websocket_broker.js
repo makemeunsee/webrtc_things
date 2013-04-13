@@ -1,17 +1,51 @@
+// hide non active element on load
 document.getElementById('joinedHeader').style.display = 'none';
 document.getElementById('leaveNetwork').style.display = 'none';
 document.getElementById('members').style.display = 'none';
 
+//// constants
+
+// from broker message headers
+var IN_JOINED = 'in network with id';
+var IN_MEMBER_LIST = 'members of network';
+var IN_WEBRTC_ANSWER = 'answer from';
+var IN_WEBRTC_OFFER = 'offer from';
+var IN_REQUEST_TIMEOUT = 'request timeout';
+var IN_FRIEND_REQUEST = 'wanna be friend';
+
+// to broker message headers
+var OUT_LEAVE = 'leave';
+var OUT_JOIN = 'join';
+var OUT_REQUEST_CONTACT = 'can i friend';
+var OUT_DENY_REQUEST = 'no friend';
+var OUT_MAKE_WEBRTC_OFFER = 'connect me to';
+var OUT_ACCEPT_WEBRTC_OFFER = 'i accept gladly';
+
+// possible states of contact
+var HAS_REQUESTED = 'contact_requested';
+var IS_REQUESTED = 'being_hit_on';
+var ESTABLISHING = 'establishing_connection';
+var ESTABLISHED = 'contact_established';
+
+
+//// collection of maps storing various data linked to a specific peer by its id ('peerId').
+
+// the current states of contact between this peer and the other peers of the network.
+// undefined if no contact request sent or received, or the received resquest was denied by the user.
 var contactStateMap = {};
+// webrtc connection handlers, defined once the webrtc handshake starts until the connection is closed.
 var connectionHandlers = {};
+// webrtc peerconnections
 var peerConnections = {};
+// webrtc data channels, for now used for the chat
 var channels = {};
+// nicknames of peers
 var nicks = {};
 
-function strStartsWith(str, prefix) {
-  return str.lastIndexOf(prefix, 0) === 0;
-}
 
+//// broker related var and functions
+
+// websocket connection to the broker
 var server = {
     connect : function() {
         var location = document.location.toString().
@@ -37,78 +71,108 @@ var server = {
         if (text != null && text.length > 0)
             server._send(text);
     },
-    _onmessage : function(msg) {
-        //alert(msg);
-        var m = msg.data;
-        if (strStartsWith(m, 'in network with id_')) {
-          trace('Joined a network: ' + m);
-          var networkIdStart = m.indexOf('_', 0)+1;
-          var networkIdEnd = m.indexOf('_', networkIdStart);
-          var networkId = m.substr(networkIdStart, networkIdEnd-networkIdStart);
-          networkJoinedUI(networkId);
-        } else if (strStartsWith(m, 'members of network_')) {
-          trace('members: ' + m);
-          var memberListStart = m.indexOf('_', 0)+1;
-          var memberList = m.substr(memberListStart, m.length-memberListStart).split(' ');
-          updateMembersUI(memberList);
-        } else if (strStartsWith(m, 'answer from_')) {
-          var peerIdStart = m.indexOf('_', 0)+1;
-          var peerIdEnd = m.indexOf('_', peerIdStart);
-          var peerId = m.substr(peerIdStart, peerIdEnd-peerIdStart);
-          trace('Got answer from ' + peerId);
-          if (contactStateMap[peerId] !== 'establishing_connection') {
-            trace('Got answer from not expected peer: ' + peerId + ', aborting connection.');
-          } else {
-            var sdp = m.substr(peerIdEnd+1, m.length-peerIdEnd-1);
-            connectionHandlers[peerId].gotRemoteAnswer(sdp);
-          }
-        } else if (strStartsWith(m, 'offer from_')) {
-          var peerIdStart = m.indexOf('_', 0)+1;
-          var peerIdEnd = m.indexOf('_', peerIdStart);
-          var peerId = m.substr(peerIdStart, peerIdEnd-peerIdStart);
-          trace('Got offer from ' + peerId);
-          if (contactStateMap[peerId] !== 'establishing_connection'
-                && contactStateMap[peerId] !== 'contact_requested') {
-            // contact not explicitly requested, refuse it
-            trace('unrequited love from ' + peerId);
-          } else {
-            var sdp = m.substr(peerIdEnd+1, m.length-peerIdEnd-1);
-            contactStateMap[peerId] = 'establishing_connection';
-            connectionHandlers[peerId].gotRemoteOffer(sdp);
-          }
-        } else if (strStartsWith(m, 'request timeout_')) {
-          var peerIdStart = m.indexOf('_', 0)+1;
-          var peerId = m.substr(peerIdStart, m.length-peerIdStart);
-          trace('request timeout with member: ' + peerId);
-          if (contactStateMap[peerId] === 'contact_requested' || contactStateMap[peerId] === 'being_hit_on') {
-            delete contactStateMap[peerId];
-            updateContactUI();
-          }
-        } else if (strStartsWith(m, 'wanna be friend_')) {
-          var peerIdStart = m.indexOf('_', 0)+1;
-          var peerId = m.substr(peerIdStart, m.length-peerIdStart);
-          trace('request of contact from member: ' + peerId);
-          if (contactStateMap[peerId] !== 'contact_established') {
-            contactStateMap[peerId] = 'being_hit_on';
-            updateContactUI();
-          }
-        } else {
-          trace('Got unsupported msg from broker: ' + m);
-        }
-    },
+    _onmessage : onMessage,
     _onclose : function(m) {
         this._ws = null;
     }
 };
 server.connect();
 
+// broker messages simple parser and handler
+function onMessage(msg) {
+
+    function strStartsWith(str, prefix) {
+        return str.lastIndexOf(prefix, 0) === 0;
+    }
+
+    function extractFirstPayLoad(msg) {
+        var startId = msg.indexOf('_', 0)+1;
+        var endId = msg.indexOf('_', startId);
+        if (endId === -1) {
+            endId = msg.length;
+        }
+        return msg.substr(startId, endId - startId);
+    }
+    //alert(msg);
+    var m = msg.data;
+    if (strStartsWith(m, IN_JOINED)) {
+        var networkId = extractFirstPayLoad(m);
+        trace('Joined a network: ' + networkId);
+        networkJoinedUI(networkId);
+    } else if (strStartsWith(m, IN_MEMBER_LIST)) {
+        var peerListStart = m.indexOf('_', 0)+1;
+        var peerList = m.substr(peerListStart, m.length - peerListStart).split(' ');
+        trace('Members in network: ' + peerList);
+        updateMembersUI(peerList);
+    } else if (strStartsWith(m, IN_WEBRTC_ANSWER)) {
+        var peerId = extractFirstPayLoad(m);
+        trace('Got answer from ' + peerId);
+        if (contactStateMap[peerId] !== ESTABLISHING) {
+            trace('Got answer from unexpected peer: ' + peerId + ', aborting connection.');
+        } else {
+            var sdpStartId = (IN_WEBRTC_ANSWER + '_' + peerId + '_').length;
+            var sdp = m.substr(sdpStartId, m.length - sdpStartId);
+            connectionHandlers[peerId].gotRemoteAnswer(sdp);
+        }
+    } else if (strStartsWith(m, IN_WEBRTC_OFFER)) {
+        var peerId = extractFirstPayLoad(m);
+        trace('Got offer from ' + peerId);
+        if (contactStateMap[peerId] !== ESTABLISHING
+                && contactStateMap[peerId] !== HAS_REQUESTED) {
+            // contact not explicitly requested, refuse it
+            trace('unrequited love from ' + peerId);
+        } else {
+            var sdpStartId = (IN_WEBRTC_OFFER + '_' + peerId + '_').length;
+            var sdp = m.substr(sdpStartId, m.length - sdpStartId);
+            contactStateMap[peerId] = ESTABLISHING;
+            connectionHandlers[peerId].gotRemoteOffer(sdp);
+        }
+    } else if (strStartsWith(m, IN_REQUEST_TIMEOUT)) {
+        var peerId = extractFirstPayLoad(m);
+        trace('request timeout with peer: ' + peerId);
+        if (contactStateMap[peerId] === HAS_REQUESTED || contactStateMap[peerId] === IS_REQUESTED) {
+            delete contactStateMap[peerId];
+            updateContactUI();
+        }
+    } else if (strStartsWith(m, IN_FRIEND_REQUEST)) {
+        var peerId = extractFirstPayLoad(m);
+        trace('request of contact from peer: ' + peerId);
+        if (contactStateMap[peerId] !== ESTABLISHED) {
+            contactStateMap[peerId] = IS_REQUESTED;
+            updateContactUI();
+        }
+    } else {
+        trace('Got unsupported msg from broker: ' + m);
+    }
+}
+
+
+//// network related functions, calling the broker
+
+// leave the current network
 function leave() {
     for (var c in connectionHandlers) {
 		trace('deleting handler ' + c);
 		connectionHandlers[c].close();
 	}
-    server.send('leave');
+    server.send(OUT_LEAVE);
     networkLeftUI();
+}
+
+// join a network
+function joinNetwork() {
+	var networkId = document.getElementById("networkInput").value;
+	var nick = document.getElementById("nickInput").value;
+	if ('' == networkId) {
+		alert('Please enter a network id to join.');
+	} else {
+		server.send(OUT_JOIN + '_' + networkId + '_' + nick);
+		if (nick.length == 0) {
+ 	        document.getElementById('nickname').innerHTML = '(invisible)';
+		} else {
+			document.getElementById('nickname').innerHTML = nick;
+		}
+	}
 }
 
 function networkJoinedUI(networkId) {
@@ -134,18 +198,18 @@ function networkLeftUI(networkId) {
     updateMembersUI([]);
 }
 
-function updateMembersUI(memberList) {
+function updateMembersUI(peerList) {
     var innerHTML = '<ul>';
 	nicks = {};
-    for(var i = 0; i < memberList.length; i++) {
-        var member = memberList[i];
-        var nickStart = member.indexOf('-')+1;
-        var nick = member.substr(nickStart, member.length-nickStart);
-        var memberId = member.substr(0, nickStart-1);
-        if (member.length > 0) {
-			nicks[memberId] = nick;
-            var contactLink = '  <div id="peercontact' + memberId + '" class="peercontact"></div>';
-            innerHTML = innerHTML + '<li><b class="peer" id="peer' + memberId + '">' + nick + '</b>' + contactLink + '</li>';
+    for(var i = 0; i < peerList.length; i++) {
+        var peer = peerList[i];
+        var nickStart = peer.indexOf('-')+1;
+        var nick = peer.substr(nickStart, peer.length-nickStart);
+        var peerId = peer.substr(0, nickStart-1);
+        if (peer.length > 0) {
+			nicks[peerId] = nick;
+            var contactLink = '  <div id="peercontact' + peerId + '" class="peercontact"></div>';
+            innerHTML = innerHTML + '<li><b class="peer" id="peer' + peerId + '">' + nick + '</b>' + contactLink + '</li>';
         }
     }
     innerHTML = innerHTML + '</ul>';
@@ -153,39 +217,52 @@ function updateMembersUI(memberList) {
     updateContactUI();
 }
 
-function contact(memberId) {
-    server.send('can i friend_' + memberId);
-    contactStateMap[memberId] = 'contact_requested';
-    connectionHandlers[memberId] = new ConnectionHandler(memberId);
+
+//// peer related functions, calling the broker
+
+// request contact with a peer
+function contact(peerId) {
+    server.send(OUT_REQUEST_CONTACT + '_' + peerId);
+    contactStateMap[peerId] = HAS_REQUESTED;
+    connectionHandlers[peerId] = new ConnectionHandler(peerId);
     updateContactUI();
 }
 
-function acceptContact(accept, memberId) {
+// accept or deny contact with a peer
+function acceptContact(accept, peerId) {
     if (accept) {
-        contactStateMap[memberId] = 'establishing_connection';
-        connectionHandlers[memberId] = new ConnectionHandler(memberId);
-        connectionHandlers[memberId].createOffer();
+        contactStateMap[peerId] = ESTABLISHING;
+        connectionHandlers[peerId] = new ConnectionHandler(peerId);
+        connectionHandlers[peerId].createOffer();
     } else {
-        server.send('no friend_' + memberId);
-        delete contactStateMap[memberId];
+        server.send(OUT_DENY_REQUEST + '_' + peerId);
+        delete contactStateMap[peerId];
     }
     updateContactUI();
 }
 
+// change the peer list according to the state of contact with each peer
 function updateContactUI() {
     var contacts = document.getElementsByClassName('peercontact');
     for (var i = 0; i < contacts.length; i++) {
         var contact = contacts[i];
         // contact is an element with class 'peercontact'
-        // its id is 'peercontactN' where N is the identifier of the member
+        // its id is 'peercontactN' where N is the identifier of the peer
         var id = contact.id.substr(11, contact.id.length-1);
         if (contactStateMap[id] === undefined) {
+            // no contact with this peer, provide a simple link to initiate contact
             contact.innerHTML = '<a class="contactlink" onclick="contact('+id+')">contact</a>';
-        } else if (contactStateMap[id] == 'contact_requested') {
+        } else if (contactStateMap[id] == HAS_REQUESTED) {
+            // the remote peer has been send the request, disable link, provide only a notification text
             contact.innerHTML = '<p class="contactlink">contacted</p>';
-        } else if (contactStateMap[id] == 'being_hit_on') {
+        } else if (contactStateMap[id] == IS_REQUESTED) {
+            // the remote peer has sent a request of contact, provide a notification and 2 buttons to accept or deny the request
             contact.innerHTML = '<p class="contactlink">is looking out for you! <button onclick="acceptContact(true,'+id+')">Accept</button><button onclick="acceptContact(false,'+id+')">Decline</button></p>';
-        } else if (contactStateMap[id] == 'contact_established') {
+        } else if (contactStateMap[id] == ESTABLISHING) {
+            // the contact request was accepted, provide a simple text to notify of the connection creation
+        	contact.innerHTML = '<p class="contactlink">establishing connection...</p>';
+        } else if (contactStateMap[id] == ESTABLISHED) {
+            // the connection between the 2 peers was successfully created, show a simple chat interface
             contact.innerHTML = '<a class="contactlink" onclick="connectionHandlers[' + id + '].close()">close</a>' +
             '<div id="sendReceive">'+
               '<div id="receive">'+
@@ -195,27 +272,11 @@ function updateContactUI() {
                 '<input class="messaging" id="dataChannelSend' + id + '" placeholder="Type some text then press Enter." onkeydown="if (event.keyCode == 13) connectionHandlers[' + id + '].sendData()"></input>'+
               '</div>'+
             '</div>';
-        } else if (contactStateMap[id] == 'establishing_connection') {
-        	contact.innerHTML = '<p class="contactlink">establishing connection...</p>';
         } else {
+            // unsupported state, nothing to be done
             contact.innerHTML = '';
         }
     }
-}
-
-function joinNetwork() {
-	var networkId = document.getElementById("networkInput").value;
-	var nick = document.getElementById("nickInput").value;
-	if ('' == networkId) {
-		alert('Please enter a network id to join.');
-	} else {
-		server.send('join_' + networkId + '_' + nick);
-		if (nick.length == 0) {
- 	      document.getElementById('nickname').innerHTML = '(invisible)';
-		} else {
-			document.getElementById('nickname').innerHTML = nick;
-		}
-	}
 }
 
 //// WEBRTC HANDLER
@@ -248,7 +309,7 @@ function ConnectionHandler(peerId) {
 		peerConnection.createOffer(function(desc){
             peerConnection.setLocalDescription(desc);
             trace('Local description set, sending offer to ' + peerId);
-            server.send("connect me to_" + peerId + "_" + desc.sdp);
+            server.send(OUT_MAKE_WEBRTC_OFFER + '_' + peerId + '_' + desc.sdp);
         });
 	};
 	
@@ -268,7 +329,7 @@ function ConnectionHandler(peerId) {
 		peerConnection.createAnswer(function(desc){
             peerConnection.setLocalDescription(desc);
             trace('Local description set, sending answer to ' + peerId);
-            server.send("i accept gladly_" + peerId + "_" + desc.sdp);
+            server.send(OUT_ACCEPT_WEBRTC_OFFER + '_' + peerId + '_' + desc.sdp);
         });
 	};
 	
@@ -326,7 +387,7 @@ function ConnectionHandler(peerId) {
             trace('datachannel (' + peerId + ') state is: ' + readyState);
             if (readyState.toLowerCase() == "open") {
 				// TODO: establish heartbeat
-                contactStateMap[peerId] = 'contact_established';
+                contactStateMap[peerId] = ESTABLISHED;
                 updateContactUI();
             } else {
                 connectionClose(peerId);
