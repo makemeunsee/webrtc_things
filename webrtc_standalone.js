@@ -5,27 +5,27 @@ sendButton2to1.disabled = true;
 closeButton.disabled = true;
 
 function createConnection() {
-  window.pc1 = new mozRTCPeerConnection();
+  window.pc1 = new RTCPeerConnection(null, { optional:[ { RtpDataChannels: true } ]});
   trace('Created local peer connection object pc1');
 
   try {
-    channel1to2 = window.pc1.createDataChannel("sendDataChannel");
+    channel1to2 = window.pc1.createDataChannel("sendDataChannel", { reliable : false });
     trace('Created send data channel');
   } catch (e) {
     alert('Failed to create data channel. ');
     trace('Create Data channel failed with exception: ' + e.message);
   }
-  //window.pc1.onicecandidate = iceCallback1;
+  pc1.onicecandidate = iceCallback1; 
   channel1to2.onopen = onchannel1to2StateChange;
   channel1to2.onclose = onchannel1to2StateChange;
   channel1to2.onmessage = onReceiveMessageFrom2Callback;
 
-  window.pc2 = new mozRTCPeerConnection();
+  window.pc2 = new RTCPeerConnection(null, { optional:[ { RtpDataChannels: true } ]});;
   trace('Created remote peer connection object pc2');
 
-  //pc2.onicecandidate = iceCallback2;
+  pc2.onicecandidate = iceCallback2;
   pc2.ondatachannel = channel2to1Callback;
-
+  
   window.pc1.createOffer(gotDescription1);
   startButton.disabled = true;
   closeButton.disabled = false;
@@ -41,6 +41,22 @@ function sendData2to1() {
   var data = document.getElementById("peer2_dataChannelSend").value;
   channel2to1.send(data);
   trace('Sent Data from 2 to 1: ' + data);
+}
+
+function iceCallback1(event) { 
+  trace('local ice callback');
+  if (event.candidate) {
+    pc2.addIceCandidate(event.candidate);
+    trace('ICE candidate from 1: \n' + event.candidate.candidate);
+  }
+}
+      
+function iceCallback2(event) {
+  trace('remote ice callback');
+  if (event.candidate) {
+    pc1.addIceCandidate(event.candidate);
+    trace('ICE candidate from 2: \n ' + event.candidate.candidate);
+  }
 }
 
 function closeDataChannels() {
@@ -69,7 +85,7 @@ function closeDataChannels() {
 }
 
 function gotDescription1(desc) {
-  trace('Offer from pc1 \n' + desc.sdp);
+  trace('Offer from pc1');
   pc1.setLocalDescription(desc);
   trace('Local description for pc1 set');
   pc2.setRemoteDescription(desc);
@@ -80,26 +96,10 @@ function gotDescription1(desc) {
 function gotDescription2(desc) {
   pc2.setLocalDescription(desc);
   trace('Local description for pc2 set');
-  trace('Answer from pc2 \n' + desc.sdp);
+  trace('Answer from pc2');
   pc1.setRemoteDescription(desc);
   trace('Remote description for pc1 set');
 }
-
-/*function iceCallback1(event) {
-  trace('local ice callback');
-  if (event.candidate) {
-    pc2.addIceCandidate(event.candidate);
-    trace('Local ICE candidate: \n' + event.candidate.candidate);
-  }
-}
-
-function iceCallback2(event) {
-  trace('remote ice callback');
-  if (event.candidate) {
-    pc1.addIceCandidate(event.candidate);
-    trace('Remote ICE candidate: \n ' + event.candidate.candidate);
-  }
-}*/
 
 function channel2to1Callback(event) {
   trace('Receive Channel Callback');

@@ -1,6 +1,5 @@
 package broker;
 
-import org.eclipse.jetty.websocket.WebSocket;
 import org.eclipse.jetty.websocket.WebSocket.Connection;
 
 public class UserSession {

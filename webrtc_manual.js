@@ -13,7 +13,7 @@ function createOffer() {
   document.getElementById('input').style.display = 'none';
   document.getElementById('localDescriptionText').style.display = 'block';
   
-  window.pc1 = new mozRTCPeerConnection();
+  window.pc1 = new RTCPeerConnection();
   trace('Created local peer connection object pc1');
 
   document.getElementById("localDescriptionText").value = "creating offer";
@@ -78,7 +78,7 @@ function inputOffer() {
   //trace('Remote description \n' + remoteDesc.sdp);
   remoteDesc.type = "offer";
   
-  window.pc1 = new mozRTCPeerConnection();
+  window.pc1 = new RTCPeerConnection();
   //pc1.onicecandidate = iceCallback1;
   pc1.ondatachannel = datachannelCallback;
   pc1.setRemoteDescription(remoteDesc);

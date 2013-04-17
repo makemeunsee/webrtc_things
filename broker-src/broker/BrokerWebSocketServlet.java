@@ -8,7 +8,6 @@ import java.util.Map.Entry;
 import javax.servlet.http.HttpServletRequest;
 
 import org.eclipse.jetty.websocket.WebSocket;
-import org.eclipse.jetty.websocket.WebSocket.Connection;
 import org.eclipse.jetty.websocket.WebSocketServlet;
 
 public class BrokerWebSocketServlet extends WebSocketServlet {
@@ -24,6 +23,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
     public static final String OUT_WEBRTC_OFFER = "offer from";
     public static final String OUT_REQUEST_TIMEOUT = "request timeout";
     public static final String OUT_FRIEND_REQUEST = "wanna be friend";
+    public static final String OUT_ICE_CANDIDATE = "got ice candy!";
 
     // from client message headers
     public static final String IN_LEAVE = "leave";
@@ -32,6 +32,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
     public static final String IN_DENY_REQUEST = "no friend";
     public static final String IN_MAKE_WEBRTC_OFFER = "connect me to";
     public static final String IN_ACCEPT_WEBRTC_OFFER = "i accept gladly";
+    public static final String IN_ICE_CANDIDATE = "give ice candy";
 
     private final Object lock = new Object();
 	private static int connectionCount = 0;
@@ -76,17 +77,34 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 					// webrtc connection offer
 					if(networkId != null) {
                         Network network = networks.get(networkId);
+						String[] tokens = msg.split("_");
+						if(tokens.length < 3) {
+							System.out.println("Discarded corrupt offer message: " + msg);
+							return;
+						}
 						try {
-							String[] tokens = msg.split("_");
-							if(tokens.length != 3) {
-								System.out.println("Discarded corrupt offer message: " + msg);
-								return;
-							}
 							// first token is IN_MAKE_WEBRTC_OFFER
 							// second token is id of requested peer
 							int requestedPeerIndex = Integer.parseInt(tokens[1]);
-							//third token is sdp offer message
-							String sdp = tokens[2];
+							//all next tokens are the sdp offer message
+							StringBuilder sb = new StringBuilder();
+							for(int i = 2; i < tokens.length-1; ++i) {
+								sb.append(tokens[i]);
+								sb.append('_');
+							}
+							sb.append(tokens[tokens.length-1]);
+							
+							String sdp = sb.toString();
+							
+							// temporary hack in attempt to support interop between firefox and chrome
+							String separator = "\n";
+							if(sdp.contains("\r\n")) {
+								separator = "\r\n";
+							}
+							if(!sdp.contains("a=crypto")) {
+								sdp = sdp + "a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:BAADBAADBAADBAADBAADBAADBAADBAADBAADBAAD" + separator;
+							}
+							// end temporary hack
 							
 							// if the request was pending, remove it
 							network.removeContactPending(requestedPeerIndex, sessionId);
@@ -105,7 +123,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 				} else if (msg.startsWith(IN_ACCEPT_WEBRTC_OFFER)) {
 					// webrtc connection answer
 					if(networkId != null) {
-                        Network network = networks.get(networkId);
+						Network network = networks.get(networkId);
 						String[] tokens = msg.split("_");
 						if(tokens.length < 3) {
 							System.out.println("Discarded corrupt answer message: " + msg);
@@ -116,7 +134,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 						int requestingPeerIndex = Integer.parseInt(tokens[1]);
 						//all next tokens are the sdp answer message
 						StringBuilder sb = new StringBuilder();
-						for(int i = 2; i < tokens.length-2; ++i) {
+						for(int i = 2; i < tokens.length-1; ++i) {
 							sb.append(tokens[i]);
 							sb.append('_');
 						}
@@ -148,7 +166,7 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 					// other tokens is nickname
 					if(tokens.length > 2) {
 						StringBuilder sb = new StringBuilder();
-						for(int i = 2; i < tokens.length-2; ++i) {
+						for(int i = 2; i < tokens.length-1; ++i) {
 							sb.append(tokens[i]);
 							sb.append('_');
 						}
@@ -216,6 +234,39 @@ public class BrokerWebSocketServlet extends WebSocketServlet {
 						
 						// nothing, let the unwanted wait without knowing
 						System.out.println("connection to " + requestedPeerIndex + " refused by " + sessionId + " in network " + networkId);
+					}
+				} else if (msg.startsWith(IN_ICE_CANDIDATE)) {
+					// webrtc connection request
+					if(networkId != null) {
+                        Network network = networks.get(networkId);
+						try {
+							String[] tokens = msg.split("_");
+							if(tokens.length < 4) {
+								System.out.println("Discarded corrupt ice candidate message: " + msg);
+								return;
+							}
+							// first token is IN_ICE_CANDIDATE
+							// second token is id of requested peer
+							int requestedPeerIndex = Integer.parseInt(tokens[1]);
+							// third token is label
+							String label = tokens[2];
+							
+							final StringBuilder sb = new StringBuilder(tokens[3]);
+							for(int i = 4; i < tokens.length; ++i) {
+								sb.append('_');
+								sb.append(tokens[i]);
+							}
+							final String candidate = sb.toString();
+
+							// simply forward the ice candidate to the requested peer
+							network.get(Integer.valueOf(requestedPeerIndex)).getConnection().sendMessage(OUT_ICE_CANDIDATE + "_" + sessionId + "_" + label + "_" + candidate);
+							System.out.println("Sent ice candidate from " + sessionId + " to " + requestedPeerIndex);
+						} catch (NumberFormatException e) {
+							System.out.println("invalid request, bad id");
+						} catch (IOException e) {
+							System.out.println("error sendind msg, see below");
+							e.printStackTrace(System.out);
+						}
 					}
 				} else {
 					System.out.println("Discarded message: " + msg);
