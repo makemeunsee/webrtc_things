@@ -3,7 +3,7 @@ webrtc_things
 
 Tests and demos with and around webrtc.
 
-Note: all these demos require Nightly, and were not tested on Chromium browsers.
+Note: all these demos require Firefox Nightly or Chrome Canary, and interop is not yet achieved.
 
 ***
 main.css & webrtc_common.js
