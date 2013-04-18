@@ -6,9 +6,11 @@ Tests and demos with and around webrtc.
 Note: all these demos require Firefox Nightly or Chrome Canary, and interop is not yet achieved.
 
 ***
-main.css & webrtc_common.js
+main.css & webrtc_common.js & adapter.js
 
 Common files required by the demos.
+
+[adapter.js source](http://code.google.com/p/webrtc-samples/source/browse/trunk/apprtc/js/adapter.js), available under the [new BSD license](http://opensource.org/licenses/BSD-3-Clause)
 ***
 webrtc.html & webrtc_standalone.js
 
