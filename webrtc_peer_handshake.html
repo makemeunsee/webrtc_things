@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="keywords" content="HTML5, JavaScript, webrtc">
+<meta http-equiv="X-UA-Compatible" content="ff=23">
+<title>RTCDataChannel</title>
+<link rel="stylesheet" href="main.css">
+<style>
+div#receive {
+}
+div#send {
+  float: left;
+  margin: 0 3em 1em 0;
+}
+div#sendReceive {
+  margin: 0 1em 1em 0;
+}
+\h1 {
+  margin: 0 0 1em 0;
+}
+h2 {
+  margin: 0 0 0.5em 0;
+}
+.messaging {
+  color: #444;
+  font-family: 'Courier New', monospace;
+  font-size: 1em;
+  width: 35.0em;
+  padding: 0.5em;
+}
+textarea.messaging {
+  height: 7.0em;
+}
+font#networkName {
+  font-size: 1.2em;
+  color: #477;
+}
+font#nickname, b.peer {
+  font-size: 1.2em;
+  color: #577;
+}
+#leaveNetwork, .contactlink {
+  font-size: 0.8em;
+}
+.peercontact, .contactlink {
+  display: inline;
+}
+</style>
+</head>
+<body>
+<div id="container">
+
+  <h1>RTCDataChannel two ways demo,<br>websocket broker</h1>
+
+  <div id="network">
+    <h2 id='noNetworkHeader'>Join a network</h2>
+    <h2 id='joinedHeader'>In network as <font id="nickname"></font></h2>
+    <a id="leaveNetwork" title="Leave the network" onclick="leave()">leave the network</a>
+    <div id="nickdiv">
+        <p>Nick (optional)<br><input id="nickInput" onkeydown="if (event.keyCode == 13) document.getElementById('joinButton').click()"/></p>
+    </div>
+    <button disabled="disabled" id="joinButton" onclick="joinNetwork()">Join</button>
+  </div>
+  
+  <div id="members">
+    <h3>Peers:</h3>
+    <p id='peerlist'></p>
+  </div>
+  
+  <div id="gobetween">
+    <h3>Go between action:</h3>
+    <p>Introduce <select id="introducingList1" onchange="updateIntroducingButton()"><option></option></select> to <select id="introducingList2" onchange="updateIntroducingButton()"><option></option></select> <button disabled="disabled" id="introduceButton" onclick="introduce()">Go!</button></p>
+  </div>
+  
+  <p>View the console to see what's happening.</p>
+  <p>For more information about PeerConnection, see <a href="http://www.html5rocks.com/en/tutorials/webrtc/basics/#toc-rtcdatachannel" title="RTCDataChannel section of HTML5 Rocks article about WebRTC">Getting Started With WebRTC</a>.</p>
+
+  <p><a href="https://github.com/samdutton/simpl/blob/master/rtcdatachannel/index.html" title="Based on this work" id="viewSource">Based on this work</a></p>
+
+  <script src="adapter.js"></script>
+  <script src="webrtc_common.js"></script>
+  <script src="webrtc_peer_handshake.js"></script>
+</div>
+</body></html>

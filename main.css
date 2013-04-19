@@ -78,6 +78,11 @@ font-family: Arial, sans-serif;
 margin: 1.8em 0 0.6em 0;
 }
 
+h3 {
+color: #ccc;
+font-family: Arial, sans-serif;
+}
+
 html {
 /* avoid annoying page width change
 when moving from the home page */
