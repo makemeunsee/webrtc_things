@@ -323,10 +323,9 @@ function ConnectionHandler(peerId) {
         peerConnection.onicecandidate = iceCallback(peerId);
         channel.onopen = onDatachannelStateChange(peerId);
         channel.onclose = onDatachannelStateChange(peerId);
+        channel.onerror = onDatachannelStateChange(peerId);
         channel.onmessage = onReceiveMessageCallback(peerId);
       
-        var constraints = {};
-        //var constraints = {"optional": [], "mandatory": {"MozDontOfferDataChannel": true}};
         peerConnection.createOffer(
             function(desc){
                 peerConnection.setLocalDescription(desc);
@@ -336,8 +335,7 @@ function ConnectionHandler(peerId) {
             },
             function(msg){
                 trace('Offer creation failed!!');
-            },
-            constraints);
+            });
     };
     
     
@@ -393,10 +391,6 @@ function ConnectionHandler(peerId) {
     
     ConnectionHandler.prototype.close = function() {
         var peerId = this.peerId;
-        if (channels[peerId] !== null) {
-            trace('Closing data channel with peer ' + peerId);
-            trace('Closed data channel with label: ' + channels[peerId].label);
-        }
         connectionClose(peerId);
     };
     
@@ -423,7 +417,7 @@ function ConnectionHandler(peerId) {
     function connectionClose(peerId) {
         peerConnections[peerId].close();
         peerConnections[peerId] = null;
-        trace('Closed peer connection with peer ' + peerId);
+        trace('Closed connection with peer ' + peerId);
         oncloseUI(peerId);
     }
         
@@ -443,7 +437,9 @@ function ConnectionHandler(peerId) {
                 contactStateMap[peerId] = ESTABLISHED;
                 updateContactUI();
             } else {
-                connectionClose(peerId);
+                if (peerConnections[peerId]) {
+                    connectionClose(peerId);
+                }
             }
         }
     }
@@ -464,6 +460,7 @@ function ConnectionHandler(peerId) {
             channels[peerId] = channel;
             channel.onmessage = onReceiveMessageCallback(peerId);
             channel.onopen = onDatachannelStateChange(peerId);
+            channel.onerror = onDatachannelStateChange(peerId);
             channel.onclose = onDatachannelStateChange(peerId);
         }
     }
