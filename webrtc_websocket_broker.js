@@ -127,7 +127,7 @@ function onMessage(msg) {
             var sdpStartId = (IN_WEBRTC_OFFER + '_' + peerId + '_').length;
             var sdp = m.substr(sdpStartId, m.length - sdpStartId);
             contactStateMap[peerId] = ESTABLISHING;
-            connectionHandlers[peerId].gotRemoteOffer(sdp);
+            connectionHandlers[peerId].gotRemoteOffer(sdp, brokerCreateAnswerCallback(peerId), brokerIceCallback(peerId));
         }
     } else if (strStartsWith(m, IN_REQUEST_TIMEOUT)) {
         var peerId = extractFirstPayLoad(m);
@@ -248,7 +248,7 @@ function acceptContact(accept, peerId) {
     if (accept) {
         contactStateMap[peerId] = ESTABLISHING;
         connectionHandlers[peerId] = new ConnectionHandler(peerId);
-        connectionHandlers[peerId].createOffer();
+        connectionHandlers[peerId].createOffer(brokerCreateOfferCallback(peerId), brokerIceCallback(peerId));
     } else {
         server.send(OUT_DENY_REQUEST + '_' + peerId);
         delete contactStateMap[peerId];
@@ -277,14 +277,25 @@ function updateContactUI() {
             // the contact request was accepted, provide a simple text to notify of the connection creation
             contact.innerHTML = '<p class="contactlink">establishing connection...</p>';
         } else if (contactStateMap[id] == ESTABLISHED) {
+            // restore old values of they exist
+            var receiveTextArea = document.getElementById('dataChannelReceive'+id);
+            var receiveValue = '';
+            if (receiveTextArea) {
+                receiveValue = receiveTextArea.value;
+            }
+            var sendTextArea = document.getElementById('dataChannelSend'+id);
+            var sendValue = '';
+            if (sendTextArea) {
+                sendValue = sendTextArea.value;
+            }
             // the connection between the 2 peers was successfully created, show a simple chat interface
             contact.innerHTML = '<a class="contactlink" onclick="connectionHandlers[' + id + '].close()">close</a>' +
             '<div id="sendReceive">'+
               '<div id="receive">'+
-                '<textarea class="messaging" id="dataChannelReceive' + id + '" readonly></textarea>'+
+                '<textarea class="messaging" id="dataChannelReceive' + id + '" readonly>'+receiveValue+'</textarea>'+
               '</div>'+
               '<div id="send">'+
-                '<input class="messaging" id="dataChannelSend' + id + '" placeholder="Type some text then press Enter." onkeydown="if (event.keyCode == 13) connectionHandlers[' + id + '].sendData()"></input>'+
+                '<input class="messaging" id="dataChannelSend' + id + '" placeholder="Type some text then press Enter." onkeydown="if (event.keyCode == 13) connectionHandlers[' + id + '].sendChatMessage()" value="'+sendValue+'"></input>'+
               '</div>'+
             '</div>';
         } else {
@@ -301,7 +312,7 @@ function ConnectionHandler(peerId) {
     
     // public methods
     
-    ConnectionHandler.prototype.createOffer = function() {
+    ConnectionHandler.prototype.createOffer = function(createOfferCallback, iceCallback) {
         var peerId = this.peerId;
         var channel = null;
         var peerConnection = new RTCPeerConnection(
@@ -320,26 +331,19 @@ function ConnectionHandler(peerId) {
             trace('Create Data channel failed with exception: ' + e.message);
         }
         
-        peerConnection.onicecandidate = iceCallback(peerId);
+        peerConnection.onicecandidate = iceCallback;
         channel.onopen = onDatachannelStateChange(peerId);
         channel.onclose = onDatachannelStateChange(peerId);
         channel.onerror = onDatachannelStateChange(peerId);
         channel.onmessage = onReceiveMessageCallback(peerId);
       
-        peerConnection.createOffer(
-            function(desc){
-                peerConnection.setLocalDescription(desc);
-                trace('Local description set, sending offer to ' + peerId);
-                server.send(OUT_MAKE_WEBRTC_OFFER + '_' + peerId + '_' + desc.sdp);
-                //trace('Sent offer: ' + desc.sdp);
-            },
+        peerConnection.createOffer(createOfferCallback,
             function(msg){
                 trace('Offer creation failed!!');
             });
     };
     
-    
-    ConnectionHandler.prototype.gotRemoteOffer = function(sdp) {
+    ConnectionHandler.prototype.gotRemoteOffer = function(sdp, createAnswerCallback, iceCallback) {
         //trace('Got remote offer: ' + sdp);
         var peerConnection = new RTCPeerConnection(
             {iceServers:[{url:"stun:stun.l.google.com:19302"}]},
@@ -349,7 +353,7 @@ function ConnectionHandler(peerId) {
         peerConnections[peerId] = peerConnection;
       
         peerConnection.ondatachannel = datachannelCallback(peerId);
-        peerConnection.onicecandidate = iceCallback(peerId);
+        peerConnection.onicecandidate = iceCallback;
 
         var remoteDesc = new RTCSessionDescription({sdp:sdp, type:'offer'});
         peerConnection.setRemoteDescription(remoteDesc,
@@ -360,12 +364,7 @@ function ConnectionHandler(peerId) {
                 trace("Set remote description failure");
             });
         trace('Remote description set, from offer of ' + peerId);
-        peerConnection.createAnswer(
-            function(desc){
-                peerConnection.setLocalDescription(desc);
-                trace('Local description set, sending answer to ' + peerId);
-                server.send(OUT_ACCEPT_WEBRTC_OFFER + '_' + peerId + '_' + desc.sdp);
-            },
+        peerConnection.createAnswer(createAnswerCallback,
             function(msg){
                 trace('Answer creation answer failed!!');
             });
@@ -377,21 +376,28 @@ function ConnectionHandler(peerId) {
         trace('Remote description set, from answer of ' + this.peerId);
     };
     
-    ConnectionHandler.prototype.sendData = function() {
+    ConnectionHandler.prototype.sendChatMessage = function() {
         var sendTextArea = document.getElementById("dataChannelSend"+this.peerId);
-        var data = sendTextArea.value;
+        var chatMessage = sendTextArea.value;
+        var data = '{ "'+PEER_CHAT+'" : "' + escape(chatMessage) + '" }';
+        this.sendDataMessage(data);
         sendTextArea.value = '';
-        channels[this.peerId].send(data);
         var chatArea = document.getElementById("dataChannelReceive"+this.peerId);
         var text = chatArea.value;
-        text = text + 'you: ' + data + '\r\n';
+        text = text + 'you: ' + chatMessage + '\r\n';
         document.getElementById("dataChannelReceive"+this.peerId).value = text;
-        trace('Sent Data to ' + this.peerId + ': ' + data);
+    };
+    
+    ConnectionHandler.prototype.sendDataMessage = function(data) {
+        trace('Sending Data to ' + this.peerId + ': ' + data);
+        trace('Data length: ' + data.length);
+        channels[this.peerId].send(data);
     };
     
     ConnectionHandler.prototype.close = function() {
         var peerId = this.peerId;
         connectionClose(peerId);
+        updateContactUI(peerId);
     };
     
     ConnectionHandler.prototype.gotRemoteIceCandidate = function(iceCandidate, label) {
@@ -401,67 +407,98 @@ function ConnectionHandler(peerId) {
         candidate.candidate = iceCandidate;
         peerConnections[this.peerId].addIceCandidate(candidate);
     }
-    
-    // private methods
-    
-    function iceCallback(peerId){
-        return function (event) { 
-            trace('local ice callback');
-            if (event.candidate) {
-                trace('Sending ICE candidate via broker: \n' + event.candidate.candidate);
-                server.send(OUT_ICE_CANDIDATE + '_' + peerId + '_' + event.candidate.sdpMLineIndex + '_' + event.candidate.candidate);
-            }
+}    
+
+// peerconnection callbacks
+
+function datachannelCallback(peerId) {
+    return function(event) {
+        trace('Datachannel Callback with peer ' + peerId);
+        var channel = event.channel;
+        channels[peerId] = channel;
+        channel.onmessage = onReceiveMessageCallback(peerId);
+        channel.onopen = onDatachannelStateChange(peerId);
+        channel.onerror = onDatachannelStateChange(peerId);
+        channel.onclose = onDatachannelStateChange(peerId);
+    }
+}
+
+// broker handshake callbacks
+
+function brokerCreateOfferCallback(peerId) {
+    return function(desc){
+        peerConnections[peerId].setLocalDescription(desc);
+        trace('Local description set, sending offer to ' + peerId);
+        server.send(OUT_MAKE_WEBRTC_OFFER + '_' + peerId + '_' + desc.sdp);
+        //trace('Sent offer: ' + desc.sdp);
+    };
+}
+
+function brokerCreateAnswerCallback(peerId) {
+    return function(desc){
+        peerConnections[peerId].setLocalDescription(desc);
+        trace('Local description set, sending answer to ' + peerId);
+        server.send(OUT_ACCEPT_WEBRTC_OFFER + '_' + peerId + '_' + desc.sdp);
+    };
+}
+
+function brokerIceCallback(peerId){
+    return function (event) { 
+        trace('local ice callback');
+        if (event.candidate) {
+            trace('Sending ICE candidate via broker: \n' + event.candidate.candidate);
+            server.send(OUT_ICE_CANDIDATE + '_' + peerId + '_' + event.candidate.sdpMLineIndex + '_' + event.candidate.candidate);
         }
     }
+}
+
+// data channel callbacks
+
+function connectionClose(peerId) {
+    peerConnections[peerId].close();
+    trace('Closed connection with peer ' + peerId);
+    delete peerConnections[peerId];
+    delete contactStateMap[peerId];
+    delete connectionHandlers[peerId];
+}
     
-    function connectionClose(peerId) {
-        peerConnections[peerId].close();
-        peerConnections[peerId] = null;
-        trace('Closed connection with peer ' + peerId);
-        oncloseUI(peerId);
-    }
-        
-    function oncloseUI(peerId) {
-        trace('oncloseUI ' + peerId);
-        delete contactStateMap[peerId];
-        delete connectionHandlers[peerId];
+function onDatachannelStateChange(peerId) {
+    return function() {
+        var readyState = channels[peerId].readyState;
+        trace('datachannel (' + peerId + ') state is: ' + readyState);
+        if (readyState.toLowerCase() == "open") {
+            contactStateMap[peerId] = ESTABLISHED;
+        } else {
+            if (peerConnections[peerId]) {
+                connectionClose(peerId);
+            }
+        }
         updateContactUI();
     }
-    
-    function onDatachannelStateChange(peerId) {
-        return function() {
-            var readyState = channels[peerId].readyState;
-            trace('datachannel (' + peerId + ') state is: ' + readyState);
-            if (readyState.toLowerCase() == "open") {
-                // TODO: establish heartbeat
-                contactStateMap[peerId] = ESTABLISHED;
-                updateContactUI();
-            } else {
-                if (peerConnections[peerId]) {
-                    connectionClose(peerId);
-                }
-            }
+}
+
+function onReceiveMessageCallback(peerId) {
+    return function(event) {
+        trace('Received Message from remote peer ' + peerId);
+        var msg = {};
+        try {
+            //trace(event.data);
+            msg = eval( '(' + event.data + ')' );
+        } catch (e) {
+            trace('Exception parsing the message: ' + e.message);
+            return;
         }
-    }
-    
-    function onReceiveMessageCallback(peerId) {
-        return function(event) {
-            trace('Received Message from remote peer ' + peerId);
+        // simple chat message support
+        if (msg[PEER_CHAT]) {
+            trace('chat msg');
+            var chatText = msg[PEER_CHAT];
             var text = document.getElementById("dataChannelReceive"+peerId).value;
-            text = text + nicks[peerId] + ': ' + event.data + '\r\n';
-            document.getElementById("dataChannelReceive"+peerId).value = text;
+            text = text + nicks[peerId] + ': ' + unescape(chatText) + '\r\n';
+            document.getElementById("dataChannelReceive"+peerId).value = text;    
         }
-    }
-    
-    function datachannelCallback(peerId) {
-        return function(event) {
-            trace('Datachannel Callback with peer ' + peerId);
-            var channel = event.channel;
-            channels[peerId] = channel;
-            channel.onmessage = onReceiveMessageCallback(peerId);
-            channel.onopen = onDatachannelStateChange(peerId);
-            channel.onerror = onDatachannelStateChange(peerId);
-            channel.onclose = onDatachannelStateChange(peerId);
+        // other messages
+        else {
+            trace('Unsupported message: ' + msg);
         }
     }
 }
