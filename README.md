@@ -25,6 +25,14 @@ webrtc_websocket_broker.html & webrtc_websocket_broker.js
 A demo of webrtc communication initiated with a minimalist websocket broker (see broker-src).
 Intended to be provided from the broker homepage, but can be easily deployed elsewhere by setting up properly the broker uri.
 ***
+webrtc_peer_handshake.html & webrtc_peer_handshake.js
+
+Based on the previous demo, user join a network and can get in touch through the broker, but a peer handshaking is available too.
+For this to work, a user A must be in contact with both B and C, and B and C must not be in contact already. A can then use the 'Go between' tool to intermediate between B and C.
+For simplicity reasons, it was not implemented that B and C are able to refuse being put in contact.
+Canary is not supported, due to its current limit imposed on the size of messages exchanged through a datachannel. It could be bypassed by using a more complex protocol between peers and splitting messages.
+
+***
 broker-src
 
 Java code for a websocket Jetty servlet. Serves as broker for the previous demo.
