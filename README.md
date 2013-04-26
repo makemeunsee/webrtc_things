@@ -57,3 +57,6 @@ Short attempt to describe the broker protocol:
 
 The broker in fact transmits automatically offers and answers of webRTC peer connection from any to any peer inside a network, the choice is left to the client code to accept the webRTC connection or not.  
 Here the client and server support a simple social protocol, allowing users to choose when to create the connection or not.
+
+***
+[♡](http://copyheart.org/) Sharing is caring! Please copy and share.
