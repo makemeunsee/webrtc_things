@@ -77,7 +77,7 @@ var server = {
         var location = document.location.toString().
             replace('http://', 'ws://').
             replace('https://', 'wss://').
-            replace('webrtc_websocket_broker.html','servlet/WebSocket');
+            replace('webrtc_peer_handshake.html','servlet/WebSocket');
         //var location = 'ws://localhost:8080/jetty_test/servlet/WebSocket/';
         //alert(location);
         this._ws = new WebSocket(location);
