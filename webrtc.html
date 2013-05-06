@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="keywords" content="HTML5, JavaScript, webrtc">
+<meta http-equiv="X-UA-Compatible" content="ff=23">
+<title>RTCDataChannel</title>
+<link rel="stylesheet" href="main.css">
+<style>
+div#buttons {
+  margin: 0 0 1em 0;
+}
+div#receive1to2, div#receive2to1 {
+}
+div#send1to2, div#send2to1 {
+  float: left;
+  margin: 0 3em 1em 0;
+}
+div#sendReceive1to2, div#sendReceive2to1 {
+  margin: 0 0 1em 0;
+}
+\h1 {
+  margin: 0 0 1em 0;
+}
+h2 {
+  margin: 0 0 0.5em 0;
+}
+textarea {
+  color: #444;
+  font-family: 'Courier New', monospace;
+  font-size: 1em;
+  height: 7.0em;
+  padding: 0.5em;
+}
+</style>
+</head>
+<body>
+<div id="container">
+
+  <h1>RTCDataChannel two ways demo</h1>
+
+  <div id="buttons">
+    <button id="startButton" onclick="createConnection()">Start</button>
+    <button disabled="disabled" id="sendButton1to2" onclick="sendData1to2()">Send 1</button>
+    <button disabled="disabled" id="sendButton2to1" onclick="sendData2to1()">Send 2</button>
+    <button disabled="disabled" id="closeButton" onclick="closeDataChannels()">Stop</button>
+  </div>
+
+  <div id="sendReceive1to2">
+    <div id="send1to2">
+      <h2>Send to 2</h2>
+      <textarea id="peer1_dataChannelSend" disabled="disabled" placeholder="Press Start, enter some text, then press Send 1."></textarea>
+    </div>
+    <div id="receive1to2">
+      <h2>Receive from 1</h2>
+      <textarea id="peer2_dataChannelReceive" disabled="disabled"></textarea>
+    </div>
+  </div>
+  <div id="sendReceive2to1">
+     <div id="send2to1">
+      <h2>Send to 1</h2>
+      <textarea id="peer2_dataChannelSend" disabled="disabled" placeholder="Press Start, enter some text, then press Send 2."></textarea>
+    </div>
+    <div id="receive2to1">
+      <h2>Receive from 2</h2>
+      <textarea id="peer1_dataChannelReceive" disabled="disabled"></textarea>
+    </div>
+  </div>
+
+  <p>View the console to see what's happening.</p>
+  <p>The <code>RTCPeerConnection</code> objects <code>pc1</code> and <code>pc2</code> are in global scope, so you can inspect them in the console as well.</p>
+  <p>For more information about PeerConnection, see <a href="http://www.html5rocks.com/en/tutorials/webrtc/basics/#toc-rtcdatachannel" title="RTCDataChannel section of HTML5 Rocks article about WebRTC">Getting Started With WebRTC</a>.</p>
+  
+  <p><a href="https://github.com/samdutton/simpl/blob/master/rtcdatachannel/index.html" title="Based on this work" id="viewSource">Based on this work</a>
+  <a href="http://copyheart.org/">♡</a> Sharing is caring! Please copy and share.<p>
+  
+  <script src="adapter.js"></script>
+  <script src="webrtc_common.js"></script>
+  <script src="webrtc_standalone.js"></script>
+
+</div>
+</body></html>
