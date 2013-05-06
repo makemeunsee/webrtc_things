@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Webrtc things by makemeunsee</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/makemeunsee/webrtc_things">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/makemeunsee/webrtc_things/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/makemeunsee/webrtc_things/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Webrtc things</h1>
+          <p>tests and demos with and around webrtc.</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/makemeunsee">makemeunsee</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="http://twitter.com/#!/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h1>webrtc_things</h1>
+
+<p>Tests and demos with and around webrtc.</p>
+
+<p>Note: all these demos require Firefox Nightly or Chrome Canary, and interop is not yet achieved.</p>
+
+<h2>main.css &amp; webrtc_common.js &amp; adapter.js</h2>
+
+<p>Common files required by the demos.</p>
+
+<p><a href="http://code.google.com/p/webrtc-samples/source/browse/trunk/apprtc/js/adapter.js">adapter.js source</a>, available under the <a href="http://opensource.org/licenses/BSD-3-Clause">new BSD license</a></p>
+
+<h2>webrtc.html &amp; webrtc_standalone.js</h2>
+
+<p>A standalone demo of 2 way communication using webrtc inside the same page.</p>
+
+<h2>webrtc_manual_handshake.html &amp; webrtc_manual.js</h2>
+
+<p>A failed demo of webrtc communication initiated without broker, by copying and pasting the handshake through another mean (up to the users: IM, email, etc.). The current timeout (~3sec) to conclude the handshake is preventing this to work, but maybe later it could be configured or specified somehow.</p>
+
+<h2>webrtc_websocket_broker.html &amp; webrtc_websocket_broker.js</h2>
+
+<p>A demo of webrtc communication initiated with a minimalist websocket broker (see broker-src).<br>
+Intended to be provided from the broker homepage, but can be easily deployed elsewhere by setting up properly the broker uri.<br>
+Interop between Nightly and Canary not yet successful, as the datachannel fails to open between the 2 browsers.</p>
+
+<h2>webrtc_peer_handshake.html &amp; webrtc_peer_handshake.js</h2>
+
+<p>Based on the previous demo, users join a network and can get in touch through the broker, but a peer handshaking is available too.<br>
+For this to work, a user A must be in contact with both B and C, and B and C must not be in contact already. A can then use the 'Go between' tool to intermediate between B and C.<br>
+For simplicity reasons, it was not implemented that B and C are able to refuse being put in contact.<br>
+Canary is not supported, due to its current limit imposed on the size of messages exchanged through a datachannel. It could be bypassed by using a more complex protocol between peers and splitting messages.</p>
+
+<h2>broker-src</h2>
+
+<p>Java code for a websocket Jetty servlet. Serves as broker for some of the previous demos.</p>
+
+<p>Short attempt to describe the broker protocol:</p>
+
+<ul>
+<li>Peers connect using websocket to the broker.</li>
+<li>Peers join ('join_[networkid]_[nick]') a network of their choice, pick a nick or none to remain invisible.</li>
+<li>The broker sends joining peers a list of all visible peers in the network.</li>
+<li>Peers can request contact ('can i friend_[peerId]') with another peer to the broker.</li>
+<li>The broker transmit the request to the interested party ('wanna be friend_[requesterId]').</li>
+<li>Requested peer can refuse the contact ('no friend_[requesterId]') or accept and initiate a webRTC peer connection through the broker.</li>
+<li>Upon refusal, the requesting peer is not sent any special message.</li>
+</ul><p>The broker in fact transmits automatically offers and answers of webRTC peer connection from any to any peer inside a network, the choice is left to the client code to accept the webRTC connection or not.<br>
+Here the client and server support a simple social protocol, allowing users to choose when to create the connection or not.</p>
+
+<hr><p><a href="http://copyheart.org/">♡</a> Sharing is caring! Please copy and share.</p>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
