@@ -14,6 +14,9 @@ var IN_REQUEST_TIMEOUT = 'request timeout';
 var IN_FRIEND_REQUEST = 'wanna be friend';
 var IN_ICE_CANDIDATE = 'got ice candy!';
 
+// peer message headers, others
+var PEER_CHAT = 'chat';
+
 // to broker message headers
 var OUT_LEAVE = 'leave';
 var OUT_JOIN = 'join';
