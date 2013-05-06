@@ -372,7 +372,7 @@ function ConnectionHandler(peerId) {
     
     // public methods
     
-    ConnectionHandler.prototype.createOffer = function(createOfferCallback, iceCallback) {
+    this.createOffer = function(createOfferCallback, iceCallback) {
         var peerId = this.peerId;
         var channel = null;
         var peerConnection = new RTCPeerConnection(
@@ -403,7 +403,7 @@ function ConnectionHandler(peerId) {
             });
     };
     
-    ConnectionHandler.prototype.gotRemoteOffer = function(sdp, createAnswerCallback, iceCallback) {
+    this.gotRemoteOffer = function(sdp, createAnswerCallback, iceCallback) {
         //trace('Got remote offer: ' + sdp);
         var peerConnection = new RTCPeerConnection(
             {iceServers:[{url:"stun:stun.l.google.com:19302"}]},
@@ -430,13 +430,13 @@ function ConnectionHandler(peerId) {
             });
     };
     
-    ConnectionHandler.prototype.gotRemoteAnswer = function(sdp) {
+    this.gotRemoteAnswer = function(sdp) {
         var remoteDesc = new RTCSessionDescription({sdp: sdp, type: 'answer'});
         peerConnections[this.peerId].setRemoteDescription(remoteDesc);
         trace('Remote description set, from answer of ' + this.peerId);
     };
     
-    ConnectionHandler.prototype.sendChatMessage = function() {
+    this.sendChatMessage = function() {
         var sendTextArea = document.getElementById("dataChannelSend"+this.peerId);
         var chatMessage = sendTextArea.value;
         var data = '{ "'+PEER_CHAT+'" : "' + escape(chatMessage) + '" }';
@@ -448,19 +448,19 @@ function ConnectionHandler(peerId) {
         document.getElementById("dataChannelReceive"+this.peerId).value = text;
     };
     
-    ConnectionHandler.prototype.sendDataMessage = function(data) {
+    this.sendDataMessage = function(data) {
         trace('Sending Data to ' + this.peerId + ': ' + data);
         trace('Data length: ' + data.length);
         channels[this.peerId].send(data);
     };
     
-    ConnectionHandler.prototype.close = function() {
+    this.close = function() {
         var peerId = this.peerId;
         connectionClose(peerId);
         updateContactUI(peerId);
     };
     
-    ConnectionHandler.prototype.gotRemoteIceCandidate = function(iceCandidate, label) {
+    this.gotRemoteIceCandidate = function(iceCandidate, label) {
         trace('got remote ice candidate, label: ' + label + ', candidate: ' + iceCandidate);
         var initializer = {candidate:iceCandidate, sdpMLineIndex: label};
         var candidate = new RTCIceCandidate(initializer);
