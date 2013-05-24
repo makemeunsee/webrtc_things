@@ -21,7 +21,9 @@ A standalone demo of 2 way communication using webrtc inside the same page.
 webrtc_manual_handshake.html & webrtc_manual.js
 -----------------------------------------------
 
-A failed demo of webrtc communication initiated without broker, by copying and pasting the handshake through another mean (up to the users: IM, email, etc.). The current timeout (~3sec) to conclude the handshake is preventing this to work, but maybe later it could be configured or specified somehow.
+A demo of webrtc communication initiated without broker, by copying and pasting the handshake through another mean (up to the users: IM, email, etc.). Creating a stream seems mandatory in order to prevent a timeout on the reception of the offer/answer.
+To use it, wait for the offer to be created then copy it and send it somehow to the other peer. The other peer has to paste it into the "Input offer" area. The other peer copies and sends you the answer, which you input in "Input answer" area.
+Canary is not (yet) supported.
 
 webrtc_websocket_broker.html & webrtc_websocket_broker.js
 ---------------------------------------------------------

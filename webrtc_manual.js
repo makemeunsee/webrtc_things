@@ -1,65 +1,100 @@
 var channel;
-startButton.disabled = false;
-sendButton.disabled = true;
-closeButton.disabled = true;
+startButton.disabled = true;
 document.getElementById('buttons').style.display = 'none';
 document.getElementById('localDescriptionText').style.display = 'none';
+document.getElementById('localDescriptionText').value = '';
+document.getElementById('inputText').value = '';
+document.getElementById('outputText').value = '';
+document.getElementById('dataChannelSend').value = '';
+document.getElementById('dataChannelReceive').value = '';
 document.getElementById('sendReceive').style.display = 'none';
 document.getElementById('output').style.display = 'none';
 
-function createOffer() {
-  document.getElementById('startButton').style.display = 'none';
-  document.getElementById('bigOr').style.display = 'none';
-  document.getElementById('input').style.display = 'none';
-  document.getElementById('localDescriptionText').style.display = 'block';
-  
-  window.pc1 = new RTCPeerConnection();
-  trace('Created local peer connection object pc1');
+var cfg = {"iceServers":[{"url":"stun:23.21.150.121"}]},
+    con = { 'optional': [{'DtlsSrtpKeyAgreement': true}, {'RtpDataChannels': true }] },
+    ignoreIce = false;
+    
+var peerConnection = new RTCPeerConnection(cfg, con);
+peerConnection.onconnection = handleOnconnection;
+peerConnection.onicecandidate = function (e) {
+  if (!ignoreIce) {
+    trace("ICE candidate: ", e);
+    if (e.candidate && !ignoreIce) {
+      peerConnection.addIceCandidate(iceCandidate);
+    }
+  }
+};
+getUserMedia({'audio':true, fake:true}, function (stream) {
+    trace("Got local audio", stream);
+    peerConnection.addStream(stream);
+    createOffer();
+}, function (e) { trace("No audio"); });
 
+function handleOnconnection() {
+  trace("Connection opened");
+}
+    
+function createOffer() {
   document.getElementById("localDescriptionText").value = "creating offer";
-  
+  ignoreIce = true;
   try {
-    channel = window.pc1.createDataChannel("DataChannel");
+    channel = peerConnection.createDataChannel("DataChannel", { reliable : false });
     trace('Created send data channel');
   } catch (e) {
     alert('Failed to create data channel. ');
     trace('Create Data channel failed with exception: ' + e.message);
   }
-  //window.pc1.onicecandidate = iceCallback1;
   channel.onopen = onDatachannelStateChange;
   channel.onclose = onDatachannelStateChange;
   channel.onmessage = onReceiveMessageCallback;
   
-  window.pc1.createOffer(gotOffer);
-  startButton.disabled = true;
-  closeButton.disabled = false;
+  peerConnection.createOffer(gotOffer);
 }
 
 function gotOffer(desc) {
   //trace('Offer description\n' + desc.sdp);
-  pc1.setLocalDescription(desc);
+  peerConnection.setLocalDescription(desc);
   trace('Local description set');
+  document.getElementById('localDescriptionText').style.display = 'block';
+  document.getElementById('localDescriptionText').value = desc.sdp;
+  startButton.disabled = false;
+}
+
+function create() {
+  document.getElementById('startButton').style.display = 'none';
+  document.getElementById('bigOr').style.display = 'none';
+  document.getElementById('input').style.display = 'none';
   
   document.getElementById('inputHeader').innerHTML = "Input answer";
   document.getElementById('inputButton').innerHTML = "Input answer";
   document.getElementById('inputButton').onclick = function() {inputAnswer()};
   document.getElementById('input').style.display = 'block';
-  document.getElementById('localDescriptionText').value = desc.sdp;
+  startButton.disabled = true;
 }
 
 function onDatachannelStateChange() {
   var readyState = channel.readyState;
   trace('datachannel state is: ' + readyState);
   if (readyState.toLowerCase() == "open") {
+    document.getElementById('buttons').style.display = 'block';
+    document.getElementById('sendReceive').style.display = 'block';
+    document.getElementById('createOffer').style.display = 'none';
+    document.getElementById('input').style.display = 'none';
+    document.getElementById('output').style.display = 'none';
+    document.getElementById('bigOr').style.display = 'none';
     dataChannelSend.disabled = false;
     dataChannelSend.focus();
     dataChannelSend.placeholder = "";
     dataChannelReceive.value = "";
-    sendButton.disabled = false;
   } else {
+    document.getElementById('buttons').style.display = 'none';
+    document.getElementById('sendReceive').style.display = 'none';
+    document.getElementById('createOffer').style.display = 'block';
+    document.getElementById('input').style.display = 'block';
+    document.getElementById('output').style.display = 'block';
+    document.getElementById('bigOr').style.display = 'block';
     dataChannelReceive.value = "Connection closed";
     dataChannelSend.disabled = true;
-    sendButton.disabled = true;
   }
 }
 
@@ -78,12 +113,12 @@ function inputOffer() {
   //trace('Remote description \n' + remoteDesc.sdp);
   remoteDesc.type = "offer";
   
-  window.pc1 = new RTCPeerConnection();
-  //pc1.onicecandidate = iceCallback1;
-  pc1.ondatachannel = datachannelCallback;
-  pc1.setRemoteDescription(remoteDesc);
+  peerConnection = new RTCPeerConnection(cfg, con);
+  //peerConnection.onicecandidate = iceCallback1;
+  peerConnection.ondatachannel = datachannelCallback;
+  peerConnection.setRemoteDescription(remoteDesc);
   trace('Remote description set');
-  pc1.createAnswer(gotAnswer);
+  peerConnection.createAnswer(gotAnswer);
   
   document.getElementById('output').style.display = 'block';
   document.getElementById('outputText').value = "creating answer";
@@ -100,13 +135,13 @@ function inputAnswer() {
   remoteDesc.__exposedProps__.sdp = "rw";
   remoteDesc.sdp = data;
   remoteDesc.type = "answer";
-  pc1.setRemoteDescription(remoteDesc);
+  peerConnection.setRemoteDescription(remoteDesc);
   trace('Remote description set');
 }
 
 function gotAnswer(desc) {
   //trace('Local description\n' + desc.sdp);
-  pc1.setLocalDescription(desc);
+  peerConnection.setLocalDescription(desc);
   trace('Local description set');
   
   document.getElementById("outputText").value = desc.sdp;
@@ -128,14 +163,12 @@ function sendData() {
 
 function closeDataChannel() {
   trace('Closing data Channel');
-  channel();
+  channel.close();
   trace('Closed data channel with label: ' + channel.label);
-  pc1.close();
-  pc1 = null;
+  peerConnection.close();
+  peerConnection = null;
   trace('Closed peer connection');
   startButton.disabled = false;
-  sendButton.disabled = true;
-  closeButton.disabled = true;
   dataChannelSend.value = "";
   dataChannelReceive.value = "";
   dataChannelSend.disabled = true;

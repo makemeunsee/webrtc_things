@@ -48,7 +48,7 @@ textarea {
   <div id="createOffer">
     <h2>Make connection offer</h2>
     <textarea id="localDescriptionText" readonly></textarea>
-    <button id="startButton" onclick="createOffer()">Make offer</button>
+    <button id="startButton" onclick="create()">Offer sent</button>
   </div>
   <div id="bigOr">OR</div>
   <div id="input">
@@ -62,8 +62,8 @@ textarea {
   </div>
   
   <div id="buttons">
-    <button disabled="disabled" id="sendButton" onclick="sendData()">Send</button>
-    <button disabled="disabled" id="closeButton" onclick="closeDataChannel()">Stop</button>
+    <button id="sendButton" onclick="sendData()">Send</button>
+    <button id="closeButton" onclick="closeDataChannel()">Stop</button>
   </div>
   
   <div id="sendReceive">
